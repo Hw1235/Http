@@ -1,6 +1,5 @@
-import { bigint, mysqlTable, text, timestamp } from "drizzle-orm/mysql-core";
-import { eq } from "drizzle-orm";
-import { migrate } from "drizzle-orm/mysql2/migrator";
+import { bigint, datetime, mysqlTable, text } from "drizzle-orm/mysql-core";
+import { eq, sql } from "drizzle-orm";
 
 import { db } from "./db";
 
@@ -9,12 +8,12 @@ const TABLE_NAME = "notes";
 export const notesSchema = mysqlTable(TABLE_NAME, {
   id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
   text: text("text").notNull(),
-  date: timestamp("date").defaultNow().notNull(),
+  date: datetime("date")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });
 
 export type Note = typeof notesSchema.$inferSelect;
-
-const filename = "notes.json";
 
 export async function createNote(note: Partial<Note>): Promise<Note> {
   if (!note.date || !note.text) {
@@ -25,17 +24,26 @@ export async function createNote(note: Partial<Note>): Promise<Note> {
     text: note.text,
     date: note.date,
   });
-  return (
+
+  const result = (
     await db
       .select()
       .from(notesSchema)
       .where(eq(notesSchema.text, note.text))
       .limit(1)
   )[0];
+
+  console.log(result);
+
+  return result;
 }
 
 export async function getAll() {
-  return await db.select().from(notesSchema).limit(10);
+  const result = await db.select().from(notesSchema).limit(100);
+
+  console.log({ result });
+
+  return result;
 }
 
 export async function deleteNote(id: number) {
@@ -55,7 +63,6 @@ export async function updateNote(id: number, note: Partial<Note>) {
     return;
   }
 
-  // db.prepare(`update ${TABLE_NAME} set where id=?`).run(note.date.getTime(), id)
   await db
     .update(notesSchema)
     .set({
@@ -64,5 +71,3 @@ export async function updateNote(id: number, note: Partial<Note>) {
     })
     .where(eq(notesSchema.id, id));
 }
-
-migrate(db, { migrationsFolder: "./drizzle" });
